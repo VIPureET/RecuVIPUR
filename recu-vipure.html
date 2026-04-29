@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Agence OS - Master v6 (Export Image)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f8fafc; --surface: #ffffff; --text: #0f172a; --muted: #64748b;
+      --accent: #059669; --danger: #dc2626; --info: #2563eb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; }
+    
+    header { background: #0f172a; color: white; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; }
+    .stats { display: flex; gap: 15px; }
+    .stat-card { background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 6px; font-size: 12px; }
+    .blur { filter: blur(5px); opacity: 0.3; }
+
+    main { flex: 1; display: grid; grid-template-columns: 450px 1fr; overflow: hidden; }
+
+    .panel-form { background: var(--surface); padding: 20px; overflow-y: auto; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 18px; }
+    section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+    
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .field label { font-size: 11px; font-weight: 700; color: var(--muted); }
+    .field input, .field select, .field textarea { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; font-family: inherit; width: 100%; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .pack-manager { background: #f1f5f9; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 10px; }
+    .pack-list { margin-top: 10px; max-height: 100px; overflow-y: auto; }
+    .pack-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 5px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; border: 1px solid #e2e8f0; }
+
+    .nego-display { background: #1e293b; color: white; padding: 15px; border-radius: 8px; position: relative; }
+    
+    button { padding: 10px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-main { background: var(--info); color: white; width: 100%; margin-bottom: 10px; }
+    .btn-download { background: #334155; color: white; }
+    .btn-print { background: #e2e8f0; color: var(--text); }
+    .btn-add-pack { background: var(--accent); color: white; padding: 5px 10px; font-size: 11px; border-radius: 4px; }
+    .btn-del { color: var(--danger); background: none; padding: 0 5px; font-size: 14px; }
+
+    .panel-preview { padding: 30px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    
+    /* STYLE DU TICKET */
+    .receipt { 
+        width: 300px; 
+        background: white; 
+        padding: 25px; 
+        border: 1px solid #e2e8f0; 
+        font-family: 'DM Mono', monospace; 
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+    }
+    .r-header { text-align: center; margin-bottom: 12px; }
+    .r-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+    .r-total { border-top: 2px solid #000; margin-top: 8px; padding-top: 8px; font-weight: 700; font-size: 15px; }
+    #qrcode { display: flex; justify-content: center; margin: 15px 0; }
+
+    .history-container { width: 100%; max-width: 950px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { background: #f8fafc; padding: 10px; text-align: left; }
+    td { padding: 10px; border-top: 1px solid #f1f5f9; }
+
+    @media print {
+      header, .panel-form, .history-container, .btn-del { display: none !important; }
+      main { display: block; }
+      .panel-preview { padding: 0; }
+      .receipt { box-shadow: none; border: 1px solid #eee; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-weight: 700">AGENCE MANAGER v6</div>
+  <div class="stats">
+    <div class="stat-card secure-data">CA: <span id="stat-ca">0.00 €</span></div>
+    <div class="stat-card secure-data">Marge: <span id="stat-marge">0.00 €</span></div>
+    <button onclick="toggleDiscreet()" style="font-size:10px; background:#334155; color:white; padding:4px 8px; border-radius:4px;">Mode Discret</button>
+  </div>
+</header>
+
+<main>
+  <aside class="panel-form">
+    
+    <section class="pack-manager">
+      <h2>Gestion des Packs</h2>
+      <div class="field"><label>Catalogue</label>
+        <select id="catalogueSelect" onchange="applyPack()">
+          <option value="">-- Choisir un pack --</option>
+        </select>
+      </div>
+      <div style="border-top: 1px solid #cbd5e1; margin: 10px 0; padding-top: 10px;">
+        <div class="field"><label>Nouveau Pack</label>
+          <input type="text" id="newPackName" placeholder="Nom">
+        </div>
+        <div class="field-row">
+            <input type="number" id="newPackPrice" placeholder="Vente HT">
+            <input type="number" id="newPackCost" placeholder="Coût HT">
+        </div>
+        <button class="btn-add-pack" onclick="addPack()" style="margin-top:5px; width:100%">Enregistrer le pack</button>
+      </div>
+      <div class="pack-list" id="packList"></div>
+    </section>
+
+    <section>
+      <h2>Transaction</h2>
+      <div class="field-row">
+        <div class="field"><label>Nom RP</label><input type="text" id="nomRp"></div>
+        <div class="field"><label>ID Client</label><input type="text" id="id"></div>
+      </div>
+      <div class="field-row">
+          <div class="field"><label>Vendeur</label><input type="text" id="vendeur"></div>
+          <div class="field"><label>TVA (%)</label><input type="number" id="tvaRate" value="20"></div>
+      </div>
+      <div class="field"><label>Produit (Libellé final)</label><input type="text" id="produit"></div>
+      <div class="field-row">
+        <div class="field"><label>Vente HT (€)</label><input type="number" id="ht" value="0"></div>
+        <div class="field"><label>Coût (€)</label><input type="number" id="cost" value="0"></div>
+      </div>
+      <div class="field-row">
+          <div class="field"><label>Remise (€)</label><input type="number" id="discount" value="0"></div>
+          <div class="field"><label>Note</label><input type="text" id="note"></div>
+      </div>
+    </section>
+
+    <div class="nego-display">
+      <div id="marginVal" class="secure-data" style="font-size: 18px; font-weight: 700;">0.00 €</div>
+      <div id="negoBadge" style="font-size: 10px; margin-top:5px; border-radius:4px; display:inline-block; padding:2px 6px;">Prêt</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-main" onclick="saveSale()">Valider la vente</button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="btn-print" onclick="window.print()">Imprimer</button>
+        <button class="btn-download" onclick="downloadReceipt()">Télécharger</button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="panel-preview">
+    <div class="receipt" id="receipt">
+      <div class="r-header">
+        <div style="font-weight: 700;">REÇU DE PAIEMENT</div>
+        <div id="r-date" style="font-size: 9px; color: #666; margin-top: 4px;">--</div>
+      </div>
+      <div class="r-line"><span>CLIENT:</span> <span id="r-client">--</span></div>
+      <div class="r-line"><span>ID:</span> <span id="r-id">--</span></div>
+      <div style="border-top: 1px dashed #eee; margin: 8px 0;"></div>
+      <div class="r-line" style="font-weight: 700;"><span id="r-prod">DÉSIGNATION</span></div>
+      <div style="border-top: 1px dashed #eee; margin: 8px 0;"></div>
+      <div class="r-line"><span>TOTAL HT:</span> <span id="r-ht">0.00 €</span></div>
+      <div class="r-line"><span>TVA (<span id="r-tva-l">20</span>%):</span> <span id="r-tva-a">0.00 €</span></div>
+      <div class="r-line" id="r-disc-row" style="color:red; display:none;"><span>REMISE:</span> <span id="r-disc">0.00 €</span></div>
+      <div class="r-line r-total"><span>TOTAL TTC:</span> <span id="r-ttc">0.00 €</span></div>
+      <div id="qrcode"></div>
+      <div class="r-line" style="font-size: 9px; margin-top: 5px;"><span>VENDEUR:</span> <span id="r-vend">--</span></div>
+    </div>
+
+    <div class="history-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>TTC</th>
+            <th>Marge</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  let history = JSON.parse(localStorage.getItem('agency_v6_history')) || [];
+  let packs = JSON.parse(localStorage.getItem('agency_v6_packs')) || [
+    { name: "Pack Starter", price: 500, cost: 100, tva: 20 },
+    { name: "Pack Premium", price: 2000, cost: 400, tva: 20 }
+  ];
+  let discreetMode = false;
+
+  function update() {
+    const getVal = (id) => document.getElementById(id).value;
+    const ht = parseFloat(getVal('ht')) || 0;
+    const tvaR = parseFloat(getVal('tvaRate')) || 0;
+    const disc = parseFloat(getVal('discount')) || 0;
+    const cost = parseFloat(getVal('cost')) || 0;
+    
+    const tvaAmt = ht * (tvaR / 100);
+    const ttc = (ht + tvaAmt) - disc;
+    const marge = ht - cost - disc;
+
+    document.getElementById('r-date').textContent = new Date().toLocaleString();
+    document.getElementById('r-client').textContent = getVal('nomRp').toUpperCase() || '--';
+    document.getElementById('r-id').textContent = getVal('id') || '--';
+    document.getElementById('r-prod').textContent = getVal('produit').toUpperCase() || 'SERVICE';
+    document.getElementById('r-ht').textContent = ht.toFixed(2) + ' €';
+    document.getElementById('r-tva-l').textContent = tvaR;
+    document.getElementById('r-tva-a').textContent = tvaAmt.toFixed(2) + ' €';
+    document.getElementById('r-ttc').textContent = ttc.toFixed(2) + ' €';
+    document.getElementById('r-vend').textContent = getVal('vendeur').toUpperCase() || '--';
+    document.getElementById('r-disc-row').style.display = disc > 0 ? 'flex' : 'none';
+    document.getElementById('r-disc').textContent = '-' + disc.toFixed(2) + ' €';
+
+    document.getElementById('marginVal').textContent = marge.toFixed(2) + ' € de marge';
+    const badge = document.getElementById('negoBadge');
+    badge.textContent = marge < 0 ? "VENTE À PERTE" : "RENTABLE";
+    badge.style.background = marge < 0 ? "var(--danger)" : "var(--accent)";
+    badge.style.color = "white";
+
+    setupQR();
+  }
+
+  function addPack() {
+    const name = document.getElementById('newPackName').value;
+    const price = parseFloat(document.getElementById('newPackPrice').value);
+    const cost = parseFloat(document.getElementById('newPackCost').value) || 0;
+    if(!name || isNaN(price)) return;
+    packs.push({ name, price, cost, tva: 20 });
+    localStorage.setItem('agency_v6_packs', JSON.stringify(packs));
+    renderPacks();
+  }
+
+  function deletePack(index) {
+    packs.splice(index, 1);
+    localStorage.setItem('agency_v6_packs', JSON.stringify(packs));
+    renderPacks();
+  }
+
+  function renderPacks() {
+    const select = document.getElementById('catalogueSelect');
+    const list = document.getElementById('packList');
+    select.innerHTML = '<option value="">-- Choisir --</option>';
+    list.innerHTML = "";
+    packs.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = p.name;
+      select.appendChild(opt);
+      const item = document.createElement('div');
+      item.className = "pack-item";
+      item.innerHTML = `<span>${p.name}</span><button class="btn-del" onclick="deletePack(${i})">🗑️</button>`;
+      list.appendChild(item);
+    });
+  }
+
+  function applyPack() {
+    const p = packs[document.getElementById('catalogueSelect').value];
+    if(!p) return;
+    document.getElementById('produit').value = p.name;
+    document.getElementById('ht').value = p.price;
+    document.getElementById('cost').value = p.cost;
+    update();
+  }
+
+  function saveSale() {
+    if(!document.getElementById('nomRp').value) return alert("Nom requis");
+    const sale = {
+      uid: Date.now(),
+      date: new Date().toLocaleDateString(),
+      client: document.getElementById('nomRp').value,
+      ttc: document.getElementById('r-ttc').textContent,
+      marge: parseFloat(document.getElementById('marginVal').textContent)
+    };
+    history.push(sale);
+    localStorage.setItem('agency_v6_history', JSON.stringify(history));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const body = document.getElementById('history-body');
+    body.innerHTML = "";
+    let ca = 0, mg = 0;
+    history.forEach(s => {
+      const row = body.insertRow();
+      row.innerHTML = `<td>${s.date}</td><td>${s.client}</td><td>${s.ttc}</td>
+      <td class="secure-data">${s.marge.toFixed(2)}€</td>
+      <td><button class="btn-del" onclick="deleteSale(${s.uid})">🗑️</button></td>`;
+      ca += parseFloat(s.ttc); mg += s.marge;
+    });
+    document.getElementById('stat-ca').textContent = ca.toFixed(2) + " €";
+    document.getElementById('stat-marge').textContent = mg.toFixed(2) + " €";
+    if(discreetMode) applyDiscreetUI();
+  }
+
+  function deleteSale(uid) {
+    history = history.filter(s => s.uid !== uid);
+    localStorage.setItem('agency_v6_history', JSON.stringify(history));
+    renderHistory();
+  }
+
+  function toggleDiscreet() {
+    discreetMode = !discreetMode;
+    applyDiscreetUI();
+  }
+
+  function applyDiscreetUI() {
+    document.querySelectorAll('.secure-data').forEach(el => discreetMode ? el.classList.add('blur') : el.classList.remove('blur'));
+  }
+
+  function setupQR() {
+    const qr = document.getElementById("qrcode");
+    qr.innerHTML = "";
+    new QRCode(qr, { text: "Verified Receipt " + Date.now(), width: 60, height: 60 });
+  }
+
+  function downloadReceipt() {
+    const receipt = document.getElementById('receipt');
+    const client = document.getElementById('nomRp').value || 'client';
+    
+    html2canvas(receipt, {
+        scale: 3,
+        backgroundColor: "#ffffff",
+    }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Recu_${client}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    });
+  }
+
+  document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', update));
+  renderPacks(); renderHistory(); update();
+</script>
+</body>
+</html>
